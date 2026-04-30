@@ -126,7 +126,20 @@ export default function Chat() {
     setMessage("");
     socket.emit("stopTyping", { room });
   };
+useEffect(() => {
+  if (!user) return;
 
+  const fetchUsers = async () => {
+    const res = await api.get("/api/users");
+    setUsers(res.data.filter((u) => u._id !== user._id));
+  };
+
+  fetchUsers();
+
+  const interval = setInterval(fetchUsers, 5000);
+
+  return () => clearInterval(interval);
+}, [user]);
   const logout = () => {
     localStorage.removeItem("user");
     window.location.href = "/login";
