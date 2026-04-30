@@ -34,19 +34,7 @@ export default function Chat() {
     return trustedUsers.some((u) => u._id === userId);
   };
 
-  const loadTrustedCircle = async () => {
-    if (!user) return;
-
-    try {
-      const res = await api.get(`/api/trust/circle/${user._id}`);
-      setTrustedUsers(res.data);
-    } catch (error) {
-      console.log(
-        "LOAD TRUSTED CIRCLE ERROR:",
-        error.response?.data || error.message,
-      );
-    }
-  };
+ 
 
   const loadRequests = async () => {
     if (!user) return;
@@ -74,16 +62,19 @@ export default function Chat() {
     }
   };
 
-  const approveRequest = async (requestId) => {
-    try {
-      await api.post(`/api/trust/approve/${user._id}/${requestId}`);
-      await loadTrustedCircle();
-      await loadRequests();
-    } catch (error) {
-      alert(error.response?.data?.message || "Failed to approve request");
-    }
-  };
+ const approveRequest = async (requestId) => {
+   try {
+     await api.post(`/api/trust/approve/${user._id}/${requestId}`);
 
+     const circleRes = await api.get(`/api/trust/circle/${user._id}`);
+     setTrustedUsers(circleRes.data);
+
+     const requestsRes = await api.get(`/api/trust/requests/${user._id}`);
+     setRequests(requestsRes.data);
+   } catch (error) {
+     alert(error.response?.data?.message || "Failed to approve request");
+   }
+ };
   const rejectRequest = async (requestId) => {
     try {
       await api.post(`/api/trust/reject/${user._id}/${requestId}`);
@@ -94,20 +85,24 @@ export default function Chat() {
   };
 
   useEffect(() => {
-    const fetchUsers = async () => {
+    if (!user) return;
+
+    const fetchData = async () => {
       try {
-        const res = await api.get("/api/users");
-        setUsers(res.data.filter((u) => u._id !== user?._id));
+        const usersRes = await api.get("/api/users");
+        setUsers(usersRes.data.filter((u) => u._id !== user._id));
+
+        const circleRes = await api.get(`/api/trust/circle/${user._id}`);
+        setTrustedUsers(circleRes.data);
+
+        const requestsRes = await api.get(`/api/trust/requests/${user._id}`);
+        setRequests(requestsRes.data);
       } catch (error) {
-        console.log("LOAD USERS ERROR:", error.response?.data || error.message);
+        console.log("LOAD DATA ERROR:", error.response?.data || error.message);
       }
     };
 
-    if (user) {
-      fetchUsers();
-      loadTrustedCircle();
-      loadRequests();
-    }
+    fetchData();
   }, [user]);
 
   useEffect(() => {
