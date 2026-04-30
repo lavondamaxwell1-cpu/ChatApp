@@ -16,14 +16,15 @@ const server = http.createServer(app);
 const PORT = process.env.PORT || 5000;
 
 /* =========================
-   🌐 CORS SETUP
+   🌐 CORS SETUP (IMPORTANT)
 ========================= */
 const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:3000",
-  process.env.CLIENT_URL,
+  process.env.CLIENT_URL, // ← your Vercel URL comes from here
 ].filter(Boolean);
 
+/* ===== EXPRESS CORS ===== */
 app.use(
   cors({
     origin: function (origin, callback) {
@@ -50,16 +51,17 @@ app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 
 /* =========================
-   🟢 ONLINE USERS TRACKING
+   🟢 ONLINE USERS
 ========================= */
 let onlineUsers = [];
 
 /* =========================
-   🔌 SOCKET.IO SETUP
+   🔌 SOCKET.IO CORS (THIS FIXES YOUR ERROR)
 ========================= */
 const io = new Server(server, {
   cors: {
     origin: allowedOrigins,
+    methods: ["GET", "POST"],
     credentials: true,
   },
 });
@@ -72,7 +74,6 @@ app.set("io", io);
 io.on("connection", (socket) => {
   console.log("Socket connected:", socket.id);
 
-  // ✅ ADD ONLINE USER
   socket.on("addOnlineUser", (userId) => {
     const exists = onlineUsers.find((u) => u.userId === userId);
 
@@ -86,10 +87,8 @@ io.on("connection", (socket) => {
     io.emit("onlineUsers", onlineUsers);
   });
 
-  // ✅ JOIN ROOM (DM or general)
   socket.on("joinRoom", async (room) => {
     socket.join(room);
-    console.log(`${socket.id} joined room: ${room}`);
 
     try {
       const messages = await Message.find({ room })
@@ -98,27 +97,25 @@ io.on("connection", (socket) => {
 
       socket.emit("roomMessages", messages);
     } catch (err) {
-      console.error("Load messages error:", err);
+      console.error(err);
     }
   });
 
-  // ✅ SEND MESSAGE
-  socket.on("sendMessage", async (messageData) => {
+  socket.on("sendMessage", async (data) => {
     try {
       const message = await Message.create({
-        user: messageData.userId,
-        username: messageData.username,
-        room: messageData.room,
-        text: messageData.text,
+        user: data.userId,
+        username: data.username,
+        room: data.room,
+        text: data.text,
       });
 
-      io.to(message.room).emit("receiveMessage", message);
+      io.to(data.room).emit("receiveMessage", message);
     } catch (err) {
-      console.error("Send message error:", err);
+      console.error(err);
     }
   });
 
-  // ✍️ TYPING
   socket.on("typing", ({ room, username }) => {
     socket.to(room).emit("userTyping", username);
   });
@@ -127,13 +124,11 @@ io.on("connection", (socket) => {
     socket.to(room).emit("userStopTyping");
   });
 
-  // ❌ DISCONNECT
   socket.on("disconnect", () => {
-    console.log("Socket disconnected:", socket.id);
-
     onlineUsers = onlineUsers.filter((u) => u.socketId !== socket.id);
 
     io.emit("onlineUsers", onlineUsers);
+    console.log("Socket disconnected:", socket.id);
   });
 });
 
@@ -150,7 +145,7 @@ app.get("/", (req, res) => {
 mongoose
   .connect(process.env.MONGO_URI)
   .then(() => console.log("MongoDB connected"))
-  .catch((err) => console.error("MongoDB error:", err));
+  .catch((err) => console.error(err));
 
 /* =========================
    🚀 START SERVER
