@@ -25,7 +25,7 @@ const allowedOrigins = [
 ].filter(Boolean);
 
 /* ===== EXPRESS CORS ===== */
-aapp.use(
+app.use(
   cors({
     origin: function (origin, callback) {
       if (
