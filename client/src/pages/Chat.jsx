@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { io } from "socket.io-client";
+import EmojiPicker from "emoji-picker-react";
 import api from "../api/api";
 import { useAuth } from "../context/useAuth";
-import EmojiPicker from "emoji-picker-react";
+
 const socket = io(import.meta.env.VITE_API_URL || "http://localhost:5000");
 
 export default function Chat() {
@@ -11,10 +12,13 @@ export default function Chat() {
   const [message, setMessage] = useState("");
   const [chat, setChat] = useState([]);
   const [users, setUsers] = useState([]);
+  const [trustedUsers, setTrustedUsers] = useState([]);
+  const [requests, setRequests] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
   const [typingUser, setTypingUser] = useState("");
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+
   const bottomRef = useRef(null);
 
   const room =
@@ -24,6 +28,69 @@ export default function Chat() {
 
   const isUserOnline = (userId) => {
     return onlineUsers.some((u) => u.userId === userId);
+  };
+
+  const isTrusted = (userId) => {
+    return trustedUsers.some((u) => u._id === userId);
+  };
+
+  const loadTrustedCircle = async () => {
+    if (!user) return;
+
+    try {
+      const res = await api.get(`/api/trust/circle/${user._id}`);
+      setTrustedUsers(res.data);
+    } catch (error) {
+      console.log(
+        "LOAD TRUSTED CIRCLE ERROR:",
+        error.response?.data || error.message,
+      );
+    }
+  };
+
+  const loadRequests = async () => {
+    if (!user) return;
+
+    try {
+      const res = await api.get(`/api/trust/requests/${user._id}`);
+      setRequests(res.data);
+    } catch (error) {
+      console.log(
+        "LOAD REQUESTS ERROR:",
+        error.response?.data || error.message,
+      );
+    }
+  };
+
+  const sendTrustRequest = async (toUserId) => {
+    try {
+      await api.post(`/api/trust/request/${toUserId}`, {
+        fromUserId: user._id,
+      });
+
+      alert("Trusted Circle request sent");
+    } catch (error) {
+      alert(error.response?.data?.message || "Failed to send request");
+    }
+  };
+
+  const approveRequest = async (requestId) => {
+    try {
+      await api.post(`/api/trust/approve/${user._id}/${requestId}`);
+      await loadTrustedCircle();
+      await loadRequests();
+    } catch (error) {
+      alert(error.response?.data?.message || "Failed to approve request");
+    }
+  };
+
+  const rejectRequest = async (requestId) => {
+    try {
+      await api.post(`/api/trust/reject/${user._id}/${requestId}`);
+      await loadRequests();
+    } catch (error) {
+      alert(error.response?.data?.message || "Failed to reject request");
+    }
   };
 
   useEffect(() => {
@@ -36,7 +103,11 @@ export default function Chat() {
       }
     };
 
-    if (user) fetchUsers();
+    if (user) {
+      fetchUsers();
+      loadTrustedCircle();
+      loadRequests();
+    }
   }, [user]);
 
   useEffect(() => {
@@ -88,6 +159,10 @@ export default function Chat() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chat]);
 
+  const handleEmojiClick = (emojiData) => {
+    setMessage((prev) => prev + emojiData.emoji);
+  };
+
   const handleTyping = (e) => {
     setMessage(e.target.value);
 
@@ -116,6 +191,11 @@ export default function Chat() {
       return;
     }
 
+    if (!isTrusted(selectedUser._id)) {
+      alert("This person is not in your Trusted Circle yet.");
+      return;
+    }
+
     socket.emit("sendMessage", {
       userId: user._id,
       username: user.username,
@@ -124,29 +204,15 @@ export default function Chat() {
     });
 
     setMessage("");
+    setShowEmojiPicker(false);
     socket.emit("stopTyping", { room });
   };
-useEffect(() => {
-  if (!user) return;
 
-  const fetchUsers = async () => {
-    const res = await api.get("/api/users");
-    setUsers(res.data.filter((u) => u._id !== user._id));
-  };
-
-  fetchUsers();
-
-  const interval = setInterval(fetchUsers, 5000);
-
-  return () => clearInterval(interval);
-}, [user]);
   const logout = () => {
     localStorage.removeItem("user");
     window.location.href = "/login";
   };
-  const handleEmojiClick = (emojiData) => {
-    setMessage((prev) => prev + emojiData.emoji);
-  };
+
   return (
     <div className="min-h-screen bg-[#f2f2f7] flex items-center justify-center p-4">
       <div className="w-full max-w-6xl h-[90vh] bg-white rounded-[2rem] shadow-2xl overflow-hidden flex border border-slate-200">
@@ -154,7 +220,9 @@ useEffect(() => {
           <div className="p-5 border-b border-slate-200">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-xl font-bold text-slate-900">Messages</h1>
+                <h1 className="text-xl font-bold text-slate-900">
+                  Trusted Circle
+                </h1>
                 <p className="text-xs text-slate-500">
                   Logged in as {user?.username}
                 </p>
@@ -169,42 +237,138 @@ useEffect(() => {
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-3 space-y-2">
-            {users.map((u) => (
-              <button
-                key={u._id}
-                onClick={() => {
-                  setSelectedUser(u);
-                  setChat([]);
-                  setTypingUser("");
-                  setMessage("");
-                }}
-                className={`w-full flex items-center gap-3 rounded-2xl p-3 text-left transition ${
-                  selectedUser?._id === u._id
-                    ? "bg-blue-100"
-                    : "hover:bg-slate-100"
-                }`}
-              >
-                <div className="relative">
-                  <div className="w-11 h-11 rounded-full bg-blue-500 text-white flex items-center justify-center font-bold">
-                    {u.username?.[0]?.toUpperCase()}
-                  </div>
+          <div className="flex-1 overflow-y-auto p-3 space-y-5">
+            {requests.length > 0 && (
+              <div>
+                <h2 className="text-xs font-bold uppercase text-slate-400 mb-2">
+                  Requests
+                </h2>
 
-                  <span
-                    className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${
-                      isUserOnline(u._id) ? "bg-green-500" : "bg-slate-300"
-                    }`}
-                  ></span>
-                </div>
+                <div className="space-y-2">
+                  {requests.map((request) => (
+                    <div
+                      key={request._id}
+                      className="rounded-2xl bg-white border border-slate-200 p-3"
+                    >
+                      <p className="font-semibold text-slate-900">
+                        {request.from?.username}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        wants to join your Trusted Circle
+                      </p>
 
-                <div>
-                  <p className="font-semibold text-slate-900">{u.username}</p>
-                  <p className="text-xs text-slate-500">
-                    {isUserOnline(u._id) ? "Online" : "Offline"}
-                  </p>
+                      <div className="flex gap-2 mt-3">
+                        <button
+                          onClick={() => approveRequest(request._id)}
+                          className="flex-1 rounded-full bg-green-500 text-white text-xs py-2 font-semibold"
+                        >
+                          Approve
+                        </button>
+
+                        <button
+                          onClick={() => rejectRequest(request._id)}
+                          className="flex-1 rounded-full bg-slate-200 text-slate-700 text-xs py-2 font-semibold"
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              </button>
-            ))}
+              </div>
+            )}
+
+            <div>
+              <h2 className="text-xs font-bold uppercase text-slate-400 mb-2">
+                My Trusted Circle
+              </h2>
+
+              {trustedUsers.length === 0 ? (
+                <p className="text-sm text-slate-400 px-2">
+                  No trusted contacts yet.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {trustedUsers.map((u) => (
+                    <button
+                      key={u._id}
+                      onClick={() => {
+                        setSelectedUser(u);
+                        setChat([]);
+                        setTypingUser("");
+                        setMessage("");
+                        setShowEmojiPicker(false);
+                      }}
+                      className={`w-full flex items-center gap-3 rounded-2xl p-3 text-left transition ${
+                        selectedUser?._id === u._id
+                          ? "bg-blue-100"
+                          : "hover:bg-slate-100"
+                      }`}
+                    >
+                      <div className="relative">
+                        <div className="w-11 h-11 rounded-full bg-blue-500 text-white flex items-center justify-center font-bold">
+                          {u.username?.[0]?.toUpperCase()}
+                        </div>
+
+                        <span
+                          className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${
+                            isUserOnline(u._id)
+                              ? "bg-green-500"
+                              : "bg-slate-300"
+                          }`}
+                        ></span>
+                      </div>
+
+                      <div>
+                        <p className="font-semibold text-slate-900">
+                          {u.username}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          {isUserOnline(u._id) ? "Online" : "Offline"}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <h2 className="text-xs font-bold uppercase text-slate-400 mb-2">
+                Add Trusted Contact
+              </h2>
+
+              <div className="space-y-2">
+                {users
+                  .filter((u) => !isTrusted(u._id))
+                  .map((u) => (
+                    <div
+                      key={u._id}
+                      className="w-full flex items-center justify-between gap-3 rounded-2xl p-3 bg-white border border-slate-200"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-slate-300 text-white flex items-center justify-center font-bold">
+                          {u.username?.[0]?.toUpperCase()}
+                        </div>
+
+                        <div>
+                          <p className="font-semibold text-slate-900">
+                            {u.username}
+                          </p>
+                          <p className="text-xs text-slate-500">{u.role}</p>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => sendTrustRequest(u._id)}
+                        className="rounded-full bg-blue-500 text-white text-xs px-3 py-2 font-semibold"
+                      >
+                        Add
+                      </button>
+                    </div>
+                  ))}
+              </div>
+            </div>
           </div>
         </aside>
 
@@ -213,10 +377,10 @@ useEffect(() => {
             <div className="flex-1 flex items-center justify-center text-center p-8">
               <div>
                 <h2 className="text-3xl font-bold text-slate-800">
-                  Select a conversation
+                  Select a Trusted Contact
                 </h2>
                 <p className="text-slate-500 mt-2">
-                  Choose a user from the left to start a private chat.
+                  Add and approve trusted contacts before chatting.
                 </p>
               </div>
             </div>
@@ -299,9 +463,7 @@ useEffect(() => {
                 <div ref={bottomRef}></div>
               </div>
 
-              {/* Input with Emoji Picker */}
               <div className="border-t border-slate-200 bg-[#f9f9fb] p-3 relative">
-                {/* Emoji picker popup */}
                 {showEmojiPicker && (
                   <div className="absolute bottom-16 left-4 z-50">
                     <EmojiPicker onEmojiClick={handleEmojiClick} />
@@ -309,7 +471,6 @@ useEffect(() => {
                 )}
 
                 <div className="flex items-center gap-2 bg-white border border-slate-300 rounded-full px-4 py-2">
-                  {/* Emoji button */}
                   <button
                     type="button"
                     onClick={() => setShowEmojiPicker((prev) => !prev)}
@@ -318,7 +479,6 @@ useEffect(() => {
                     😊
                   </button>
 
-                  {/* Input */}
                   <input
                     value={message}
                     onChange={handleTyping}
@@ -329,7 +489,6 @@ useEffect(() => {
                     className="flex-1 bg-transparent outline-none text-[15px]"
                   />
 
-                  {/* Send button */}
                   <button
                     onClick={sendMessage}
                     className="w-8 h-8 rounded-full bg-[#007aff] text-white font-bold flex items-center justify-center hover:bg-blue-600"

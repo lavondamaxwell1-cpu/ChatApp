@@ -5,7 +5,7 @@ const cors = require("cors");
 const mongoose = require("mongoose");
 const http = require("http");
 const { Server } = require("socket.io");
-
+const trustRoutes = require("./routes/trustRoutes")
 const authRoutes = require("./routes/authRoutes");
 const userRoutes = require("./routes/userRoutes");
 const Message = require("./models/Message");
@@ -48,7 +48,7 @@ app.use(express.json());
 ========================= */
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
-
+app.use("/api/trust", trustRoutes);
 /* =========================
    🟢 ONLINE USERS
 ========================= */
