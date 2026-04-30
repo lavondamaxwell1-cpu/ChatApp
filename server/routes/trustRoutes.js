@@ -65,6 +65,7 @@ router.get("/requests/:userId", async (req, res) => {
 });
 
 // APPROVE REQUEST
+
 router.post("/approve/:userId/:requestId", async (req, res) => {
   try {
     const { userId, requestId } = req.params;
@@ -75,6 +76,13 @@ router.post("/approve/:userId/:requestId", async (req, res) => {
       return res.status(404).json({ message: "User not found." });
     }
 
+    // 🚨 NEW RULE: ONLY adults can approve
+    if (receiver.role !== "adult") {
+      return res.status(403).json({
+        message: "Only adults can approve trusted connections.",
+      });
+    }
+
     const request = receiver.pendingRequests.id(requestId);
 
     if (!request) {
@@ -83,6 +91,7 @@ router.post("/approve/:userId/:requestId", async (req, res) => {
 
     request.status = "approved";
 
+    // Add both users to each other's trusted circle
     if (!receiver.trustedCircle.includes(request.from)) {
       receiver.trustedCircle.push(request.from);
     }
@@ -98,11 +107,10 @@ router.post("/approve/:userId/:requestId", async (req, res) => {
 
     res.json({ message: "User added to Trusted Circle." });
   } catch (error) {
-    console.error("Approve trust request error:", error);
+    console.error("Approve error:", error);
     res.status(500).json({ message: "Failed to approve request." });
   }
 });
-
 // REJECT REQUEST
 router.post("/reject/:userId/:requestId", async (req, res) => {
   try {

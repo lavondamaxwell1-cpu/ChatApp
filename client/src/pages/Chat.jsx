@@ -253,19 +253,27 @@ const navigate = useNavigate();
                       </p>
 
                       <div className="flex gap-2 mt-3">
-                        <button
-                          onClick={() => approveRequest(request._id)}
-                          className="flex-1 rounded-full bg-green-500 text-white text-xs py-2 font-semibold"
-                        >
-                          Approve
-                        </button>
+                        {user?.role === "adult" ? (
+                          <>
+                            <button
+                              onClick={() => approveRequest(request._id)}
+                              className="flex-1 rounded-full bg-green-500 text-white text-xs py-2 font-semibold"
+                            >
+                              Approve
+                            </button>
 
-                        <button
-                          onClick={() => rejectRequest(request._id)}
-                          className="flex-1 rounded-full bg-slate-200 text-slate-700 text-xs py-2 font-semibold"
-                        >
-                          Reject
-                        </button>
+                            <button
+                              onClick={() => rejectRequest(request._id)}
+                              className="flex-1 rounded-full bg-slate-200 text-slate-700 text-xs py-2 font-semibold"
+                            >
+                              Reject
+                            </button>
+                          </>
+                        ) : (
+                          <p className="text-xs text-slate-400 italic w-full text-center">
+                            Waiting for adult approval…
+                          </p>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -359,6 +367,12 @@ const navigate = useNavigate();
                         className="rounded-full bg-blue-500 text-white text-xs px-3 py-2 font-semibold"
                       >
                         Add
+                      </button>
+                      <button
+                        onClick={() => sendTrustRequest(u._id)}
+                        className="rounded-full bg-blue-500 text-white text-xs px-3 py-2 font-semibold"
+                      >
+                        {user.role === "kid" ? "Request" : "Add"}
                       </button>
                     </div>
                   ))}
