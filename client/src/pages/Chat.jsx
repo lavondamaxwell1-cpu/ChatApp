@@ -7,8 +7,7 @@ import { useNavigate } from "react-router-dom";
 const socket = io(import.meta.env.VITE_API_URL || "http://localhost:5000");
 
 export default function Chat() {
-  const { user } = useAuth();
-
+   const { user, logout } = useAuth();
   const [message, setMessage] = useState("");
   const [chat, setChat] = useState([]);
   const [users, setUsers] = useState([]);
@@ -203,10 +202,12 @@ const navigate = useNavigate();
     socket.emit("stopTyping", { room });
   };
 
-  const logout = () => {
-    localStorage.removeItem("user");
-    navigate("/login", { replace: true });
-  };
+
+
+ const handleLogout = () => {
+   logout();
+   navigate("/", { replace: true });
+ };
   return (
     <div className="min-h-screen bg-[#f2f2f7] flex items-center justify-center p-4">
       <div className="w-full max-w-6xl h-[90vh] bg-white rounded-[2rem] shadow-2xl overflow-hidden flex border border-slate-200">
@@ -223,7 +224,7 @@ const navigate = useNavigate();
               </div>
 
               <button
-                onClick={logout}
+                onClick={handleLogout}
                 className="text-sm font-semibold text-blue-500 hover:text-blue-600"
               >
                 Logout
