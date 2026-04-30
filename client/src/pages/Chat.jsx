@@ -3,7 +3,7 @@ import { io } from "socket.io-client";
 import EmojiPicker from "emoji-picker-react";
 import api from "../api/api";
 import { useAuth } from "../context/useAuth";
-
+import { useNavigate } from "react-router-dom";
 const socket = io(import.meta.env.VITE_API_URL || "http://localhost:5000");
 
 export default function Chat() {
@@ -18,7 +18,7 @@ export default function Chat() {
   const [typingUser, setTypingUser] = useState("");
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-
+const navigate = useNavigate();
   const bottomRef = useRef(null);
 
   const room =
@@ -205,9 +205,8 @@ export default function Chat() {
 
   const logout = () => {
     localStorage.removeItem("user");
-    window.location.href = "/login";
+    navigate("/login", { replace: true });
   };
-
   return (
     <div className="min-h-screen bg-[#f2f2f7] flex items-center justify-center p-4">
       <div className="w-full max-w-6xl h-[90vh] bg-white rounded-[2rem] shadow-2xl overflow-hidden flex border border-slate-200">
