@@ -25,13 +25,14 @@ const allowedOrigins = [
 ].filter(Boolean);
 
 /* ===== EXPRESS CORS ===== */
-app.use(
+aapp.use(
   cors({
     origin: function (origin, callback) {
       if (
         !origin ||
         allowedOrigins.includes(origin) ||
-        origin.includes("localhost")
+        origin.includes("localhost") ||
+        origin.includes("vercel.app")
       ) {
         return callback(null, true);
       }
