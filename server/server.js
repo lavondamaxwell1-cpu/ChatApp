@@ -30,7 +30,6 @@ app.use(
     origin: function (origin, callback) {
       if (
         !origin ||
-        allowedOrigins.includes(origin) ||
         origin.includes("localhost") ||
         origin.includes("vercel.app")
       ) {
@@ -61,13 +60,21 @@ let onlineUsers = [];
 ========================= */
 const io = new Server(server, {
   cors: {
-    origin: allowedOrigins,
+    origin: (origin, callback) => {
+      if (
+        !origin ||
+        origin.includes("localhost") ||
+        origin.includes("vercel.app")
+      ) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
     methods: ["GET", "POST"],
     credentials: true,
   },
 });
-
-app.set("io", io);
 
 /* =========================
    🔌 SOCKET EVENTS
